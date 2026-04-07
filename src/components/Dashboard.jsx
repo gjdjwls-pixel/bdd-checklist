@@ -1,4 +1,4 @@
-import { CATEGORIES, TOTAL_SCORE } from '../lib/data.js'
+import { CATEGORIES, TOTAL_SCORE, calcScore } from '../lib/data.js'
 
 function scoreColor(pct) {
   if (pct >= 80) return '#2ecc71'
@@ -6,86 +6,110 @@ function scoreColor(pct) {
   return '#e74c3c'
 }
 
-function Ring({ pct, size = 80 }) {
+function Ring({ pct, size = 72 }) {
   const r = (size - 10) / 2
   const circ = 2 * Math.PI * r
   const dash = (pct / 100) * circ
   return (
     <svg width={size} height={size}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#1e1e1e" strokeWidth="8" />
-      <circle
-        cx={size / 2} cy={size / 2} r={r}
-        fill="none"
-        stroke={scoreColor(pct)}
-        strokeWidth="8"
-        strokeDasharray={`${dash} ${circ - dash}`}
-        strokeDashoffset={circ / 4}
-        strokeLinecap="round"
-        style={{ transition: 'stroke-dasharray 0.6s ease' }}
-      />
-      <text x={size / 2} y={size / 2 + 5} textAnchor="middle" fill={scoreColor(pct)} fontSize="14" fontWeight="600" fontFamily="DM Mono">
-        {pct}%
-      </text>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1e1e1e" strokeWidth="7" />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={scoreColor(pct)}
+        strokeWidth="7" strokeDasharray={`${dash} ${circ-dash}`}
+        strokeDashoffset={circ/4} strokeLinecap="round"
+        style={{ transition: 'stroke-dasharray 0.5s ease' }} />
+      <text x={size/2} y={size/2+5} textAnchor="middle" fill={scoreColor(pct)}
+        fontSize="13" fontWeight="600" fontFamily="DM Mono">{pct}%</text>
     </svg>
   )
 }
 
-export default function Dashboard({ checks, totalScore, totalPct }) {
-  const checkedCount = Object.values(checks).filter(Boolean).length
-  const unchecked = 50 - checkedCount
+export default function Dashboard({ managers, todaySubmissions }) {
+  const today = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
 
-  const catData = CATEGORIES.map(cat => {
-    const done = cat.items.filter((_, i) => checks[`${cat.id}_${i}`]).length
-    const pct = Math.round((done / cat.items.length) * 100)
-    return { ...cat, done, pct, score: done * 2, maxScore: cat.items.length * 2 }
+  const managerStats = managers.map(m => {
+    const sub = todaySubmissions[m.id]
+    const score = sub ? calcScore(sub.checks) : null
+    const pct = score !== null ? Math.round((score / TOTAL_SCORE) * 100) : null
+    return { ...m, score, pct, submitted: sub?.submitted || false, checks: sub?.checks || {} }
   })
 
-  const weak = [...catData].sort((a, b) => a.pct - b.pct).slice(0, 3)
+  const submitted = managerStats.filter(m => m.submitted)
+  const avgScore = submitted.length
+    ? Math.round(submitted.reduce((s, m) => s + m.score, 0) / submitted.length)
+    : 0
+  const avgPct = Math.round((avgScore / TOTAL_SCORE) * 100)
+
+  // 카테고리별 평균
+  const catAvg = CATEGORIES.map(cat => {
+    if (!submitted.length) return { ...cat, avg: 0 }
+    const total = submitted.reduce((s, m) => {
+      const done = cat.items.filter((_, i) => m.checks[`${cat.id}_${i}`]).length
+      return s + (done / cat.items.length * 100)
+    }, 0)
+    return { ...cat, avg: Math.round(total / submitted.length) }
+  })
 
   return (
     <div className="dashboard-page">
-      {/* Hero score */}
-      <div className="score-hero">
-        <Ring pct={totalPct} size={120} />
-        <div className="score-hero-info">
-          <div className="score-big" style={{ color: scoreColor(totalPct) }}>{totalScore}점</div>
-          <div className="score-label">/ {TOTAL_SCORE}점 만점</div>
-          <div className="score-sub">{checkedCount}개 통과 · {unchecked}개 미통과</div>
-        </div>
-      </div>
+      <div className="dash-date">{today} 현황</div>
 
-      {/* Weak areas */}
-      {weak.some(w => w.pct < 100) && (
-        <div className="alert-section">
-          <div className="alert-title">⚠ 집중 개선 필요</div>
-          {weak.filter(w => w.pct < 100).map(w => (
-            <div key={w.id} className="alert-item">
-              <span className="alert-badge" style={{ background: w.bg, color: w.color }}>{w.name}</span>
-              <span className="alert-pct" style={{ color: scoreColor(w.pct) }}>{w.pct}%</span>
-              <span className="alert-detail">{w.done}/{w.score === w.maxScore ? w.done : w.maxScore / 2}개 통과</span>
+      {/* 매니저별 카드 */}
+      <div className="manager-status-grid">
+        {managerStats.map(m => (
+          <div key={m.id} className={`status-card ${m.submitted ? 'done' : ''}`}>
+            <div className="status-card-top">
+              <span className="status-name">{m.name}</span>
+              {m.submitted
+                ? <span className="pill green">제출완료</span>
+                : m.score !== null
+                  ? <span className="pill yellow">작성중</span>
+                  : <span className="pill gray">미시작</span>
+              }
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Category bars */}
-      <div className="cat-bars-section">
-        <div className="section-title">카테고리별 달성률</div>
-        {catData.map(cat => (
-          <div key={cat.id} className="cat-bar-row">
-            <span className="cat-bar-name">{cat.name}</span>
-            <div className="cat-bar-track">
-              <div
-                className="cat-bar-fill"
-                style={{ width: `${cat.pct}%`, background: cat.color }}
-              />
-            </div>
-            <span className="cat-bar-val" style={{ color: scoreColor(cat.pct) }}>
-              {cat.score}/{cat.maxScore}
-            </span>
+            {m.submitted && m.pct !== null ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                <Ring pct={m.pct} size={64} />
+                <div>
+                  <div style={{ fontFamily: 'DM Mono', fontSize: 22, fontWeight: 600, color: scoreColor(m.pct) }}>
+                    {m.score}점
+                  </div>
+                  <div style={{ fontSize: 11, color: '#555' }}>/ {TOTAL_SCORE}점</div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ color: '#444', fontSize: 13, marginTop: 8 }}>—</div>
+            )}
           </div>
         ))}
       </div>
+
+      {/* 평균 점수 */}
+      {submitted.length > 0 && (
+        <>
+          <div className="avg-card">
+            <div className="avg-label">팀 평균 점수 ({submitted.length}명 제출)</div>
+            <div className="avg-score" style={{ color: scoreColor(avgPct) }}>{avgScore}점</div>
+            <div className="avg-pct" style={{ color: scoreColor(avgPct) }}>{avgPct}%</div>
+          </div>
+
+          <div className="cat-bars-section">
+            <div className="section-title">카테고리별 평균 달성률</div>
+            {catAvg.map(cat => (
+              <div key={cat.id} className="cat-bar-row">
+                <span className="cat-bar-name">{cat.name}</span>
+                <div className="cat-bar-track">
+                  <div className="cat-bar-fill" style={{ width: `${cat.avg}%`, background: cat.color }} />
+                </div>
+                <span className="cat-bar-val" style={{ color: scoreColor(cat.avg) }}>{cat.avg}%</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {submitted.length === 0 && (
+        <div className="empty-state">아직 오늘 제출한 매니저가 없습니다.</div>
+      )}
     </div>
   )
 }

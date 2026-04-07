@@ -1,4 +1,4 @@
-import { CATEGORIES } from '../lib/data.js'
+import { CATEGORIES, TOTAL_SCORE, calcScore } from '../lib/data.js'
 
 function scoreColor(pct) {
   if (pct >= 80) return '#2ecc71'
@@ -6,58 +6,62 @@ function scoreColor(pct) {
   return '#e74c3c'
 }
 
-export default function Checklist({ checks, onToggle }) {
-  const today = new Date().toLocaleDateString('ko-KR', {
-    year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'
-  })
+export default function Checklist({ manager, checks, submitted, onToggle, onSubmit, onBack }) {
+  const score = calcScore(checks)
+  const pct = Math.round((score / TOTAL_SCORE) * 100)
+  const checkedCount = Object.values(checks).filter(Boolean).length
 
   return (
     <div className="checklist-page">
-      <div className="page-date">{today}</div>
+      <div className="cl-topbar">
+        <button className="back-btn" onClick={onBack}>← 홈</button>
+        <div className="cl-manager-name">{manager.name}</div>
+        <div className="cl-score" style={{ color: scoreColor(pct) }}>{score}점</div>
+      </div>
+
+      {submitted && (
+        <div className="submitted-banner">
+          제출 완료 — 수정이 필요하면 관리자에게 문의하세요.
+        </div>
+      )}
 
       {CATEGORIES.map(cat => {
-        const checked = cat.items.filter((_, i) => checks[`${cat.id}_${i}`]).length
-        const total = cat.items.length
-        const pct = Math.round((checked / total) * 100)
+        const catChecked = cat.items.filter((_, i) => checks[`${cat.id}_${i}`]).length
+        const catPct = Math.round((catChecked / cat.items.length) * 100)
 
         return (
           <div key={cat.id} className="cat-section">
             <div className="cat-header">
               <div className="cat-title-row">
-                <span className="cat-badge" style={{ background: cat.bg, color: cat.color }}>
-                  {cat.name}
-                </span>
-                <span className="cat-count" style={{ color: scoreColor(pct) }}>
-                  {checked * 2}/{total * 2}점
+                <span className="cat-badge" style={{ background: cat.bg, color: cat.color }}>{cat.name}</span>
+                <span className="cat-count" style={{ color: scoreColor(catPct) }}>
+                  {catChecked * 2}/{cat.items.length * 2}점
                 </span>
               </div>
               <div className="cat-progress-track">
-                <div
-                  className="cat-progress-fill"
-                  style={{ width: `${pct}%`, background: scoreColor(pct) }}
-                />
+                <div className="cat-progress-fill" style={{ width: `${catPct}%`, background: scoreColor(catPct) }} />
               </div>
             </div>
-
             <div className="items-list">
               {cat.items.map((item, i) => {
                 const key = `${cat.id}_${i}`
-                const checked = !!checks[key]
+                const isChecked = !!checks[key]
                 return (
                   <div
                     key={key}
-                    className={`check-item ${checked ? 'checked' : ''}`}
-                    onClick={() => onToggle(key)}
+                    className={`check-item ${isChecked ? 'checked' : ''} ${submitted ? 'disabled' : ''}`}
+                    onClick={() => !submitted && onToggle(key)}
                   >
-                    <div className={`check-box ${checked ? 'checked' : ''}`} style={checked ? { borderColor: cat.color, background: cat.color } : {}}>
-                      {checked && (
+                    <div className={`check-box ${isChecked ? 'checked' : ''}`}
+                      style={isChecked ? { borderColor: cat.color, background: cat.color } : {}}>
+                      {isChecked && (
                         <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
                           <path d="M1 4.5L3.8 7.5L10 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                       )}
                     </div>
                     <span className="item-label">{item}</span>
-                    <span className="item-pts">{checked ? '+2' : '0'}</span>
+                    <span className="item-pts">{isChecked ? '+2' : '0'}</span>
                   </div>
                 )
               })}
@@ -65,6 +69,24 @@ export default function Checklist({ checks, onToggle }) {
           </div>
         )
       })}
+
+      {!submitted && (
+        <div className="submit-footer">
+          <div className="submit-footer-info">
+            <span>{checkedCount}/{TOTAL_SCORE / 2}개 체크 · {score}점</span>
+          </div>
+          <button
+            className="submit-btn"
+            onClick={() => {
+              if (window.confirm(`${manager.name}님의 오늘 체크리스트를 제출하시겠습니까?\n제출 후에는 수정이 불가합니다.`)) {
+                onSubmit()
+              }
+            }}
+          >
+            제출하기
+          </button>
+        </div>
+      )}
     </div>
   )
 }
