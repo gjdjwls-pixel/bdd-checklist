@@ -99,6 +99,27 @@ export const CATEGORIES = [
     items: [
       '스포티파이를 사용해 표준 플레이리스트를 재생하고 있으며, 볼륨이 적절하다.'
     ]
+  },
+  {
+    id: 'supplies', name: '소모품', color: '#6c3483', bg: '#f5eef8',
+    items: [
+      '규정된 어메니티(샴푸/바디워시/바디로션)을 사용한다.',
+      '규정된 소형가전(드라이기/선풍기)을 사용한다.'
+    ]
+  },
+  {
+    id: 'airscent', name: '공조/향', color: '#117a65', bg: '#e8f8f5',
+    items: [
+      '실내온도는 여름 20~22도 / 겨울 22도~24도를 유지한다.',
+      '버핏그라운드 전용 전자 디퓨저를 사용하고 있으며, 화장실 등 비치된 개별 디퓨저가 적절히 관리되고 있다. (디퓨저 외관에 먼지가 쌓여 있지 않고 리드 스틱이 과도하게 꽂혀있거나 방치되어 있지 않다)',
+      '센터 전반에 걸쳐 배수구, 화장실, 기구 가죽 등에서 땀 냄새 등 불쾌한 악취가 발생하지 않으며, 쾌적한 상태가 유지된다.'
+    ]
+  },
+  {
+    id: 'design', name: '디자인', color: '#d68910', bg: '#fef9e7',
+    items: [
+      '지점 자체 제작한 POSM이 가이드에 맞게 제작되어 있으며, 표준 포맥스가 적용되어 있다.'
+    ]
   }
 ]
 
@@ -108,6 +129,7 @@ export const TOTAL_SCORE = TOTAL_ITEMS * 2
 export function getTodayKey() {
   return new Date().toISOString().slice(0, 10)
 }
+
 export function calcScore(checks) {
   return Object.values(checks || {}).filter(Boolean).length * 2
 }
