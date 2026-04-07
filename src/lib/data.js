@@ -108,3 +108,6 @@ export const TOTAL_SCORE = TOTAL_ITEMS * 2
 export function getTodayKey() {
   return new Date().toISOString().slice(0, 10)
 }
+export function calcScore(checks) {
+  return Object.values(checks || {}).filter(Boolean).length * 2
+}
