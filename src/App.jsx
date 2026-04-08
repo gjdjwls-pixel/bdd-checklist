@@ -10,13 +10,14 @@ export default function App() {
   const [tab, setTab] = useState('home')
   const [managers, setManagers] = useState([])
   const [activeManager, setActiveManager] = useState(null)
-  const [todaySubmissions, setTodaySubmissions] = useState({})
+  const [selectedDate, setSelectedDate] = useState(getTodayKey())
+  const [dateSubmissions, setDateSubmissions] = useState({})
   const [myChecks, setMyChecks] = useState({})
   const [mySubmitted, setMySubmitted] = useState(false)
   const [loading, setLoading] = useState(true)
   const today = getTodayKey()
+  const isToday = selectedDate === today
 
-  // Load managers
   async function loadManagers() {
     const { data } = await supabase
       .from('managers')
@@ -26,16 +27,15 @@ export default function App() {
     if (data) setManagers(data)
   }
 
-  // Load today's all submissions
-  async function loadTodaySubmissions() {
+  async function loadDateSubmissions(date) {
     const { data } = await supabase
       .from('daily_submissions')
       .select('*, managers(name)')
-      .eq('date', today)
+      .eq('date', date)
     if (data) {
       const map = {}
       data.forEach(s => { map[s.manager_id] = s })
-      setTodaySubmissions(map)
+      setDateSubmissions(map)
     }
   }
 
@@ -43,17 +43,16 @@ export default function App() {
     async function init() {
       setLoading(true)
       await loadManagers()
-      await loadTodaySubmissions()
+      await loadDateSubmissions(selectedDate)
       setLoading(false)
     }
     init()
-  }, [today])
+  }, [selectedDate])
 
-  // Realtime: submissions 변경 감지
   useEffect(() => {
     const ch = supabase.channel('rt-submissions')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_submissions' }, () => {
-        loadTodaySubmissions()
+        loadDateSubmissions(selectedDate)
       })
       .subscribe()
     const ch2 = supabase.channel('rt-managers')
@@ -62,12 +61,11 @@ export default function App() {
       })
       .subscribe()
     return () => { supabase.removeChannel(ch); supabase.removeChannel(ch2) }
-  }, [])
+  }, [selectedDate])
 
-  // 매니저 선택 시 기존 데이터 로드
   async function selectManager(manager) {
     setActiveManager(manager)
-    const existing = todaySubmissions[manager.id]
+    const existing = dateSubmissions[manager.id]
     if (existing) {
       setMyChecks(existing.checks || {})
       setMySubmitted(existing.submitted || false)
@@ -78,9 +76,8 @@ export default function App() {
     setTab('checklist')
   }
 
-  // 체크 토글 (제출 전까지만)
   async function toggle(key) {
-    if (mySubmitted) return
+    if (mySubmitted || !isToday) return
     const newChecks = { ...myChecks, [key]: !myChecks[key] }
     setMyChecks(newChecks)
     await supabase.from('daily_submissions').upsert({
@@ -90,10 +87,9 @@ export default function App() {
       submitted: false,
       updated_at: new Date().toISOString()
     }, { onConflict: 'manager_id,date' })
-    await loadTodaySubmissions()
+    await loadDateSubmissions(selectedDate)
   }
 
-  // 제출 확정
   async function submit() {
     await supabase.from('daily_submissions').upsert({
       manager_id: activeManager.id,
@@ -104,7 +100,7 @@ export default function App() {
       updated_at: new Date().toISOString()
     }, { onConflict: 'manager_id,date' })
     setMySubmitted(true)
-    await loadTodaySubmissions()
+    await loadDateSubmissions(selectedDate)
   }
 
   const myScore = calcScore(myChecks)
@@ -162,8 +158,15 @@ export default function App() {
         {tab === 'home' && (
           <ManagerSelect
             managers={managers}
-            todaySubmissions={todaySubmissions}
+            dateSubmissions={dateSubmissions}
+            selectedDate={selectedDate}
+            isToday={isToday}
+            today={today}
             onSelect={selectManager}
+            onDateChange={(d) => {
+              setSelectedDate(d)
+              setActiveManager(null)
+            }}
           />
         )}
         {tab === 'checklist' && (
@@ -172,6 +175,7 @@ export default function App() {
               manager={activeManager}
               checks={myChecks}
               submitted={mySubmitted}
+              isToday={isToday}
               onToggle={toggle}
               onSubmit={submit}
               onBack={() => setTab('home')}
@@ -184,7 +188,7 @@ export default function App() {
           )
         )}
         {tab === 'dashboard' && (
-          <Dashboard managers={managers} todaySubmissions={todaySubmissions} />
+          <Dashboard managers={managers} todaySubmissions={dateSubmissions} />
         )}
         {tab === 'history' && (
           <History managers={managers} />

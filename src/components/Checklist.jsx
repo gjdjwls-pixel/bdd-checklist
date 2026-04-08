@@ -6,22 +6,26 @@ function scoreColor(pct) {
   return '#e74c3c'
 }
 
-export default function Checklist({ manager, checks, submitted, onToggle, onSubmit, onBack }) {
+export default function Checklist({ manager, checks, submitted, isToday, onToggle, onSubmit, onBack }) {
   const score = calcScore(checks)
   const pct = Math.round((score / TOTAL_SCORE) * 100)
   const checkedCount = Object.values(checks).filter(Boolean).length
+  const readOnly = submitted || !isToday
 
   return (
     <div className="checklist-page">
       <div className="cl-topbar">
         <button className="back-btn" onClick={onBack}>← 홈</button>
-        <div className="cl-manager-name">{manager.name}</div>
-        <div className="cl-score" style={{ color: scoreColor(pct) }}>{score}점</div>
+        <div className="cl-name">{manager.name}</div>
+        <div className="cl-sc" style={{ color: scoreColor(pct) }}>{score}점</div>
       </div>
 
       {submitted && (
-        <div className="submitted-banner">
-          제출 완료 — 수정이 필요하면 관리자에게 문의하세요.
+        <div className="submitted-banner">제출 완료 — 수정이 필요하면 관리자에게 문의하세요.</div>
+      )}
+      {!isToday && !submitted && (
+        <div className="submitted-banner" style={{ background: '#1a1500', borderColor: '#3a3000', color: '#f39c12' }}>
+          과거 날짜 조회 중 — 수정할 수 없습니다.
         </div>
       )}
 
@@ -49,8 +53,8 @@ export default function Checklist({ manager, checks, submitted, onToggle, onSubm
                 return (
                   <div
                     key={key}
-                    className={`check-item ${isChecked ? 'checked' : ''} ${submitted ? 'disabled' : ''}`}
-                    onClick={() => !submitted && onToggle(key)}
+                    className={`check-item ${isChecked ? 'checked' : ''} ${readOnly ? 'disabled' : ''}`}
+                    onClick={() => !readOnly && onToggle(key)}
                   >
                     <div className={`check-box ${isChecked ? 'checked' : ''}`}
                       style={isChecked ? { borderColor: cat.color, background: cat.color } : {}}>
@@ -70,7 +74,7 @@ export default function Checklist({ manager, checks, submitted, onToggle, onSubm
         )
       })}
 
-      {!submitted && (
+      {!readOnly && (
         <div className="submit-footer">
           <div className="submit-footer-info">
             <span>{checkedCount}/{TOTAL_SCORE / 2}개 체크 · {score}점</span>
