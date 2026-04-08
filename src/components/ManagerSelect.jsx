@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { TOTAL_SCORE, calcScore } from '../lib/data.js'
 
 function scoreColor(pct) {
@@ -7,37 +8,49 @@ function scoreColor(pct) {
 }
 
 export default function ManagerSelect({ managers, dateSubmissions, selectedDate, isToday, today, onSelect, onDateChange }) {
+  const [showCal, setShowCal] = useState(false)
+
   const displayDate = new Date(selectedDate + 'T00:00:00').toLocaleDateString('ko-KR', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'
   })
 
   const submittedCount = Object.values(dateSubmissions).filter(s => s.submitted).length
 
-  function changeDate(offset) {
-    const d = new Date(selectedDate + 'T00:00:00')
-    d.setDate(d.getDate() + offset)
-    const newDate = d.toISOString().slice(0, 10)
-    if (newDate <= today) onDateChange(newDate)
-  }
-
   return (
     <div className="select-page">
       <div className="select-header">
         <div className="date-nav">
-          <button className="date-nav-btn" onClick={() => changeDate(-1)}>←</button>
-          <div className="date-center">
+          <div className="date-center" onClick={() => setShowCal(!showCal)} style={{ cursor: 'pointer', flex: 1 }}>
             <div className="select-date">{displayDate}</div>
-            {!isToday && (
-              <button className="today-jump-btn" onClick={() => onDateChange(today)}>오늘로</button>
-            )}
+            <div style={{ fontSize: 10, color: '#555', marginTop: 2 }}>날짜 변경 ▾</div>
           </div>
-          <button
-            className="date-nav-btn"
-            onClick={() => changeDate(1)}
-            disabled={isToday}
-            style={{ opacity: isToday ? 0.3 : 1 }}
-          >→</button>
+          {!isToday && (
+            <button className="today-jump-btn" onClick={() => { onDateChange(today); setShowCal(false) }}>오늘로</button>
+          )}
         </div>
+
+        {showCal && (
+          <div style={{ marginBottom: 12 }}>
+            <input
+              type="date"
+              max={today}
+              value={selectedDate}
+              onChange={e => { onDateChange(e.target.value); setShowCal(false) }}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                background: '#1a1a1a',
+                border: '1px solid #333',
+                borderRadius: 8,
+                color: '#f0f0f0',
+                fontSize: 14,
+                fontFamily: 'Noto Sans KR, sans-serif',
+                cursor: 'pointer'
+              }}
+            />
+          </div>
+        )}
+
         <div className="select-progress-label">
           {isToday ? '오늘' : '해당일'} 제출 현황
           <span className="submit-count">{submittedCount} / {managers.length}</span>
