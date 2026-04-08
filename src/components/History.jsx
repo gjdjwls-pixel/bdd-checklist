@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { supabase, CATEGORIES, TOTAL_SCORE, calcScore } from '../lib/data.js'
 
 function scoreColor(pct) {
@@ -50,30 +50,32 @@ export default function History({ managers }) {
     return row
   })
 
-  // 카테고리별 차트 데이터
+  // 카테고리별 차트 데이터 (점수 기준)
   const cat = CATEGORIES.find(c => c.id === selectedCat)
+  const catMaxScore = cat ? cat.items.length * 2 : 0
   const catChartData = sortedDates.map(date => {
     const row = { date: date.slice(5) }
     managers.forEach(m => {
       const checks = dateMap[date][m.id]
       if (!checks) { row[m.id] = null; return }
       const done = cat.items.filter((_, i) => checks[`${cat.id}_${i}`]).length
-      row[m.id] = Math.round(done / cat.items.length * 100)
+      row[m.id] = done * 2
     })
     const vals = managers.map(m => row[m.id]).filter(v => v !== null)
     row.avg = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null
     return row
   })
 
-  // 카테고리 평균 (전체 기간)
+  // 카테고리 평균 점수 (전체 기간)
   const catAvgData = CATEGORIES.map(c => {
     const allVals = []
     history.forEach(s => {
       const done = c.items.filter((_, i) => s.checks?.[`${c.id}_${i}`]).length
-      allVals.push(Math.round(done / c.items.length * 100))
+      allVals.push(done * 2)
     })
     const avg = allVals.length ? Math.round(allVals.reduce((a, b) => a + b, 0) / allVals.length) : 0
-    return { name: c.name, avg, color: c.color }
+    const maxScore = c.items.length * 2
+    return { name: c.name, avg, maxScore, color: c.color, pct: Math.round(avg / maxScore * 100) }
   })
 
   const CustomTooltip = ({ active, payload, label }) => {
@@ -83,7 +85,7 @@ export default function History({ managers }) {
         <div style={{ color: '#888', fontSize: 11, marginBottom: 6 }}>{label}</div>
         {payload.map((p, i) => p.value !== null && (
           <div key={i} style={{ color: p.color, fontSize: 13, fontFamily: 'DM Mono' }}>
-            {p.name}: {p.value}{mode === 'category' ? '%' : '점'}
+            {p.name}: {p.value}점
           </div>
         ))}
       </div>
@@ -91,8 +93,8 @@ export default function History({ managers }) {
   }
 
   const chartData = mode === 'total' ? totalChartData : catChartData
-  const yDomain = mode === 'total' ? [0, TOTAL_SCORE] : [0, 100]
-  const yUnit = mode === 'total' ? '점' : '%'
+  const yDomain = mode === 'total' ? [0, TOTAL_SCORE] : [0, catMaxScore]
+  const yUnit = '점'
 
   return (
     <div className="history-page">
@@ -137,7 +139,7 @@ export default function History({ managers }) {
           {/* 개인별 라인 차트 */}
           <div className="chart-card">
             <div className="section-title">
-              {mode === 'total' ? '개인별 총점 추이' : `${cat.name} — 개인별 달성률 추이`} (최근 30일)
+              {mode === 'total' ? '개인별 총점 추이' : `${cat.name} — 개인별 점수 추이 (만점 ${catMaxScore}점)`} (최근 30일)
             </div>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -165,7 +167,7 @@ export default function History({ managers }) {
           {/* 팀 평균 */}
           <div className="chart-card">
             <div className="section-title">
-              {mode === 'total' ? '팀 평균 총점 추이' : `${cat.name} — 팀 평균 달성률`}
+              {mode === 'total' ? '팀 평균 총점 추이' : `${cat.name} — 팀 평균 점수 추이`}
             </div>
             <ResponsiveContainer width="100%" height={150}>
               <LineChart data={chartData.filter(d => d.avg !== null)} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -180,23 +182,23 @@ export default function History({ managers }) {
             </ResponsiveContainer>
           </div>
 
-          {/* 카테고리 모드일 때: 전체 카테고리 평균 막대 */}
+          {/* 카테고리 모드일 때: 전체 카테고리 평균 점수 비교 */}
           {mode === 'category' && (
             <div className="chart-card">
-              <div className="section-title">카테고리별 전체 평균 달성률</div>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={catAvgData} layout="vertical" margin={{ top: 0, right: 40, left: 20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#222" horizontal={false} />
-                  <XAxis type="number" domain={[0, 100]} tick={{ fill: '#555', fontSize: 10 }} unit="%" />
-                  <YAxis type="category" dataKey="name" tick={{ fill: '#888', fontSize: 11 }} width={40} />
-                  <Tooltip formatter={(v) => `${v}%`} contentStyle={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 8 }} />
-                  <Bar dataKey="avg" radius={[0, 4, 4, 0]}>
-                    {catAvgData.map((entry, i) => (
-                      <rect key={i} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="section-title">카테고리별 평균 점수 비교 (전체 기간)</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {catAvgData.map(c => (
+                  <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 11, color: '#888', width: 44, textAlign: 'right', flexShrink: 0 }}>{c.name}</span>
+                    <div style={{ flex: 1, height: 8, background: '#1a1a1a', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ width: `${c.pct}%`, height: '100%', background: c.color, borderRadius: 4, transition: 'width .4s' }} />
+                    </div>
+                    <span style={{ fontSize: 11, fontFamily: 'DM Mono', color: scoreColor(c.pct), width: 54, textAlign: 'right', flexShrink: 0 }}>
+                      {c.avg}/{c.maxScore}점
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </>
