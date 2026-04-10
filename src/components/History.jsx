@@ -320,7 +320,7 @@ export default function History({ managers }) {
                     {managers.map((m, i) => (
                       <Line key={m.id} type="monotone" dataKey={m.id} name={m.name}
                         stroke={MGR_COLORS[i % MGR_COLORS.length]} strokeWidth={2}
-                        dot={{ r: 3 }} connectNulls={false} />
+                        dot={{ r: 3 }} connectNulls={true} />
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
