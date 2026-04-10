@@ -77,12 +77,12 @@ export default function App() {
   }
 
   async function toggle(key) {
-    if (mySubmitted || !isToday) return
+    if (mySubmitted) return
     const newChecks = { ...myChecks, [key]: !myChecks[key] }
     setMyChecks(newChecks)
     await supabase.from('daily_submissions').upsert({
       manager_id: activeManager.id,
-      date: today,
+      date: selectedDate,
       checks: newChecks,
       submitted: false,
       updated_at: new Date().toISOString()
@@ -93,7 +93,7 @@ export default function App() {
   async function submit() {
     await supabase.from('daily_submissions').upsert({
       manager_id: activeManager.id,
-      date: today,
+      date: selectedDate,
       checks: myChecks,
       submitted: true,
       submitted_at: new Date().toISOString(),

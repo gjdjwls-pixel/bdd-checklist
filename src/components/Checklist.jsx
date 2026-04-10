@@ -10,7 +10,7 @@ export default function Checklist({ manager, checks, submitted, isToday, onToggl
   const score = calcScore(checks)
   const pct = Math.round((score / TOTAL_SCORE) * 100)
   const checkedCount = Object.values(checks).filter(Boolean).length
-  const readOnly = submitted || !isToday
+  const readOnly = submitted
 
   return (
     <div className="checklist-page">
@@ -25,7 +25,7 @@ export default function Checklist({ manager, checks, submitted, isToday, onToggl
       )}
       {!isToday && !submitted && (
         <div className="submitted-banner" style={{ background: '#1a1500', borderColor: '#3a3000', color: '#f39c12' }}>
-          과거 날짜 조회 중 — 수정할 수 없습니다.
+          과거 날짜 — 미제출 상태입니다. 수정 후 제출할 수 있습니다.
         </div>
       )}
 
