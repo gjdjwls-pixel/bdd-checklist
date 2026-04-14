@@ -13,6 +13,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(getTodayKey())
   const [dateSubmissions, setDateSubmissions] = useState({})
   const [myChecks, setMyChecks] = useState({})
+  const [myMemos, setMyMemos] = useState({})
   const [mySubmitted, setMySubmitted] = useState(false)
   const [loading, setLoading] = useState(true)
   const today = getTodayKey()
@@ -20,18 +21,13 @@ export default function App() {
 
   async function loadManagers() {
     const { data } = await supabase
-      .from('managers')
-      .select('*')
-      .eq('active', true)
-      .order('display_order')
+      .from('managers').select('*').eq('active', true).order('display_order')
     if (data) setManagers(data)
   }
 
   async function loadDateSubmissions(date) {
     const { data } = await supabase
-      .from('daily_submissions')
-      .select('*, managers(name)')
-      .eq('date', date)
+      .from('daily_submissions').select('*, managers(name)').eq('date', date)
     if (data) {
       const map = {}
       data.forEach(s => { map[s.manager_id] = s })
@@ -53,13 +49,11 @@ export default function App() {
     const ch = supabase.channel('rt-submissions')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_submissions' }, () => {
         loadDateSubmissions(selectedDate)
-      })
-      .subscribe()
+      }).subscribe()
     const ch2 = supabase.channel('rt-managers')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'managers' }, () => {
         loadManagers()
-      })
-      .subscribe()
+      }).subscribe()
     return () => { supabase.removeChannel(ch); supabase.removeChannel(ch2) }
   }, [selectedDate])
 
@@ -68,26 +62,45 @@ export default function App() {
     const existing = dateSubmissions[manager.id]
     if (existing) {
       setMyChecks(existing.checks || {})
+      setMyMemos(existing.memos || {})
       setMySubmitted(existing.submitted || false)
     } else {
       setMyChecks({})
+      setMyMemos({})
       setMySubmitted(false)
     }
     setTab('checklist')
   }
 
-  async function toggle(key) {
-    if (mySubmitted) return
-    const newChecks = { ...myChecks, [key]: !myChecks[key] }
-    setMyChecks(newChecks)
+  async function upsert(checks, memos) {
     await supabase.from('daily_submissions').upsert({
       manager_id: activeManager.id,
       date: selectedDate,
-      checks: newChecks,
+      checks,
+      memos,
       submitted: false,
       updated_at: new Date().toISOString()
     }, { onConflict: 'manager_id,date' })
     await loadDateSubmissions(selectedDate)
+  }
+
+  async function toggle(key) {
+    if (mySubmitted) return
+    const newChecks = { ...myChecks, [key]: !myChecks[key] }
+    // 체크하면 해당 메모 삭제
+    const newMemos = { ...myMemos }
+    if (newChecks[key]) delete newMemos[key]
+    setMyChecks(newChecks)
+    setMyMemos(newMemos)
+    await upsert(newChecks, newMemos)
+  }
+
+  async function updateMemo(key, text) {
+    if (mySubmitted) return
+    const newMemos = { ...myMemos, [key]: text }
+    if (!text) delete newMemos[key]
+    setMyMemos(newMemos)
+    await upsert(myChecks, newMemos)
   }
 
   async function submit() {
@@ -95,6 +108,7 @@ export default function App() {
       manager_id: activeManager.id,
       date: selectedDate,
       checks: myChecks,
+      memos: myMemos,
       submitted: true,
       submitted_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -131,9 +145,7 @@ export default function App() {
               <span className="score-total">/{TOTAL_SCORE}</span>
             </div>
           ) : (
-            <button className="icon-btn" onClick={() => setTab('admin')} title="매니저 관리">
-              ⚙
-            </button>
+            <button className="icon-btn" onClick={() => setTab('admin')} title="매니저 관리">⚙</button>
           )}
         </div>
         <nav className="nav">
@@ -143,11 +155,7 @@ export default function App() {
             { id: 'dashboard', label: '현황' },
             { id: 'history', label: '추이' }
           ].map(t => (
-            <button
-              key={t.id}
-              className={`nav-btn ${tab === t.id ? 'active' : ''}`}
-              onClick={() => setTab(t.id)}
-            >
+            <button key={t.id} className={`nav-btn ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
               {t.label}
             </button>
           ))}
@@ -163,10 +171,7 @@ export default function App() {
             isToday={isToday}
             today={today}
             onSelect={selectManager}
-            onDateChange={(d) => {
-              setSelectedDate(d)
-              setActiveManager(null)
-            }}
+            onDateChange={(d) => { setSelectedDate(d); setActiveManager(null) }}
           />
         )}
         {tab === 'checklist' && (
@@ -174,9 +179,11 @@ export default function App() {
             <Checklist
               manager={activeManager}
               checks={myChecks}
+              memos={myMemos}
               submitted={mySubmitted}
               isToday={isToday}
               onToggle={toggle}
+              onMemo={updateMemo}
               onSubmit={submit}
               onBack={() => setTab('home')}
             />

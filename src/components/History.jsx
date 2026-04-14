@@ -17,10 +17,12 @@ function getMonthList(history) {
 
 export default function History({ managers }) {
   const [history, setHistory] = useState([])
-  const [mode, setMode] = useState('total')      // total | category | monthly
+  const [mode, setMode] = useState('total')      // total | category | monthly | memos
   const [view, setView] = useState('chart')      // chart | table
   const [selectedCat, setSelectedCat] = useState(CATEGORIES[0].id)
   const [selectedMonth, setSelectedMonth] = useState(null)
+  const [memoCat, setMemoCat] = useState('all')  // all | cat id
+  const [memoLimit, setMemoLimit] = useState(30)
 
   useEffect(() => {
     async function load() {
@@ -154,6 +156,7 @@ export default function History({ managers }) {
         <button className={`toggle-btn ${mode === 'total' ? 'active' : ''}`} onClick={() => setMode('total')}>총점</button>
         <button className={`toggle-btn ${mode === 'category' ? 'active' : ''}`} onClick={() => setMode('category')}>카테고리별</button>
         <button className={`toggle-btn ${mode === 'monthly' ? 'active' : ''}`} onClick={() => setMode('monthly')}>월간 실행률</button>
+        <button className={`toggle-btn ${mode === 'memos' ? 'active' : ''}`} onClick={() => setMode('memos')}>메모 모아보기</button>
       </div>
 
       {/* 카테고리 선택 */}
@@ -169,6 +172,98 @@ export default function History({ managers }) {
           ))}
         </div>
       )}
+
+      {/* ───── 메모 모아보기 모드 ───── */}
+      {mode === 'memos' && (() => {
+        // 전체 메모 수집
+        const allMemos = []
+        history.forEach(s => {
+          if (!s.memos) return
+          const mgrName = s.managers?.name || '알 수 없음'
+          Object.entries(s.memos).forEach(([key, text]) => {
+            if (!text?.trim()) return
+            // key 형식: catId_itemIndex
+            const parts = key.split('_')
+            const itemIdx = parseInt(parts[parts.length - 1])
+            const catId = parts.slice(0, parts.length - 1).join('_')
+            const cat = CATEGORIES.find(c => c.id === catId)
+            if (!cat) return
+            const itemText = cat.items[itemIdx] || ''
+            allMemos.push({ date: s.date, mgrName, catId, catName: cat.name, catColor: cat.color, catBg: cat.bg, itemText, memo: text.trim() })
+          })
+        })
+        allMemos.sort((a, b) => b.date.localeCompare(a.date))
+
+        const filtered = memoCat === 'all' ? allMemos : allMemos.filter(m => m.catId === memoCat)
+        const shown = filtered.slice(0, memoLimit)
+
+        // 카테고리별 메모 수
+        const catCounts = {}
+        allMemos.forEach(m => { catCounts[m.catId] = (catCounts[m.catId] || 0) + 1 })
+
+        return (
+          <>
+            {/* 카테고리 필터 */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+              <button onClick={() => setMemoCat('all')} style={{
+                padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 500,
+                border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+                background: memoCat === 'all' ? '#f0f0f0' : '#1a1a1a',
+                color: memoCat === 'all' ? '#000' : '#888'
+              }}>전체 {allMemos.length}건</button>
+              {CATEGORIES.filter(c => catCounts[c.id]).map(c => (
+                <button key={c.id} onClick={() => setMemoCat(c.id)} style={{
+                  padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 500,
+                  border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+                  background: memoCat === c.id ? c.color : '#1a1a1a',
+                  color: memoCat === c.id ? '#fff' : '#888'
+                }}>{c.name} {catCounts[c.id]}</button>
+              ))}
+            </div>
+
+            {shown.length === 0 ? (
+              <div className="empty-state">메모가 없습니다. 체크리스트에서 미체크 항목에 메모를 남겨보세요!</div>
+            ) : (
+              <>
+                {shown.map((m, idx) => (
+                  <div key={idx} style={{
+                    background: '#111', border: '1px solid #222', borderRadius: 10,
+                    padding: '12px 14px', marginBottom: 8
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 999,
+                        background: m.catBg, color: m.catColor
+                      }}>{m.catName}</span>
+                      <span style={{ fontSize: 11, color: '#555', fontFamily: 'DM Mono' }}>{m.date}</span>
+                      <span style={{ fontSize: 11, color: '#555', marginLeft: 'auto' }}>{m.mgrName}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#888', marginBottom: 6, lineHeight: 1.5 }}>
+                      {m.itemText}
+                    </div>
+                    <div style={{
+                      fontSize: 13, color: '#f0f0f0', lineHeight: 1.6,
+                      background: '#1a1a1a', borderRadius: 6, padding: '8px 10px',
+                      borderLeft: `3px solid ${m.catColor}`
+                    }}>
+                      {m.memo}
+                    </div>
+                  </div>
+                ))}
+                {filtered.length > memoLimit && (
+                  <button onClick={() => setMemoLimit(l => l + 30)} style={{
+                    width: '100%', padding: '10px', background: '#1a1a1a', border: '1px solid #333',
+                    borderRadius: 8, color: '#888', fontSize: 13, cursor: 'pointer',
+                    fontFamily: 'Noto Sans KR, sans-serif', marginTop: 4
+                  }}>
+                    더 보기 ({filtered.length - memoLimit}건 남음)
+                  </button>
+                )}
+              </>
+            )}
+          </>
+        )
+      })()}
 
       {/* ───── 월간 실행률 모드 ───── */}
       {mode === 'monthly' && (

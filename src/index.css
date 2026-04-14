@@ -207,3 +207,38 @@ html, body {
 .btn-primary { background: #2ecc71; color: #000; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'Noto Sans KR', sans-serif; }
 .spinner { width: 32px; height: 32px; border: 2px solid #222; border-top-color: #2ecc71; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+.check-item-wrap { border-bottom: 1px solid var(--border); }
+.check-item-wrap:last-child { border-bottom: none; }
+.check-item-wrap .check-item { border-bottom: none; }
+.memo-area { padding: 0 14px 10px 38px; }
+.memo-input {
+  width: 100%; background: #111; border: 1px solid #2a2a2a; border-radius: 6px;
+  padding: 8px 10px; color: #f0f0f0; font-size: 12px; line-height: 1.6;
+  font-family: 'Noto Sans KR', sans-serif; resize: none; outline: none;
+  transition: border-color .15s;
+}
+.memo-input:focus { border-color: #444; }
+.memo-input::placeholder { color: #444; }
+.memo-readonly {
+  display: flex; align-items: flex-start; gap: 6px;
+  font-size: 12px; color: #aaa; line-height: 1.6;
+  background: #111; border-radius: 6px; padding: 8px 10px;
+  border-left: 3px solid #333;
+}
+.memo-icon { color: #555; flex-shrink: 0; font-size: 13px; }
+.memo-empty { font-size: 11px; color: #333; padding: 4px 0; }
+.memo-pencil-btn {
+  background: none; border: none; cursor: pointer;
+  width: 28px; height: 28px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; position: relative; transition: background .15s;
+}
+.memo-pencil-btn:hover { background: #1a1a1a; }
+.memo-pencil-btn.open { background: #1a1a1a; }
+.memo-pencil-btn.missing { animation: memo-pulse 1.8s infinite; }
+@keyframes memo-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.memo-dot {
+  position: absolute; top: 4px; right: 4px;
+  width: 6px; height: 6px; border-radius: 50%; background: #f39c12;
+}
