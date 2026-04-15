@@ -127,7 +127,10 @@ export const TOTAL_ITEMS = CATEGORIES.reduce((s, c) => s + c.items.length, 0)
 export const TOTAL_SCORE = TOTAL_ITEMS * 2
 
 export function getTodayKey() {
-  return new Date().toISOString().slice(0, 10)
+  // 한국 시간(UTC+9) 기준 날짜
+  const now = new Date()
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  return kst.toISOString().slice(0, 10)
 }
 
 export function calcScore(checks) {
