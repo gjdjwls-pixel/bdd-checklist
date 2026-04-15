@@ -182,11 +182,11 @@ export default function History({ managers }) {
         history.forEach(s => {
           const mgrName = s.managers?.name || '알 수 없음'
 
-          // 미체크 항목 집계
+          // 미체크 + 메모 작성된 항목만 집계
           CATEGORIES.forEach(cat => {
             cat.items.forEach((itemText, i) => {
               const key = `${cat.id}_${i}`
-              if (!s.checks?.[key]) {
+              if (!s.checks?.[key] && s.memos?.[key]?.trim()) {
                 if (!uncheckedCount[key]) {
                   uncheckedCount[key] = { catId: cat.id, catName: cat.name, catColor: cat.color, catBg: cat.bg, itemText, count: 0 }
                 }
