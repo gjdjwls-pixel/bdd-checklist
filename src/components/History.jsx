@@ -599,6 +599,17 @@ export default function History({ managers }) {
                     {managers.map(m => <th key={m.id}>{m.name}</th>)}
                     <th>평균</th>
                   </tr>
+                  <tr>
+                    <th style={{ color: '#333', fontWeight: 400, fontSize: 10 }}>만점</th>
+                    {managers.map(m => (
+                      <th key={m.id} style={{ color: '#444', fontWeight: 400, fontSize: 10, fontFamily: 'DM Mono' }}>
+                        /{mode === 'total' ? TOTAL_SCORE : catMaxScore}
+                      </th>
+                    ))}
+                    <th style={{ color: '#444', fontWeight: 400, fontSize: 10, fontFamily: 'DM Mono' }}>
+                      /{mode === 'total' ? TOTAL_SCORE : catMaxScore}
+                    </th>
+                  </tr>
                 </thead>
                 <tbody>
                   {[...chartData].reverse().map(row => {
