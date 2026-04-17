@@ -21,8 +21,10 @@ export default function History({ managers }) {
   const [view, setView] = useState('chart')      // chart | table
   const [selectedCat, setSelectedCat] = useState(CATEGORIES[0].id)
   const [selectedMonth, setSelectedMonth] = useState(null)
-  const [memoCat, setMemoCat] = useState('all')  // all | cat id
+  const [memoCat, setMemoCat] = useState('all')
   const [memoLimit, setMemoLimit] = useState(30)
+  const [memoView, setMemoView] = useState('all')   // all | daily
+  const [memoDate, setMemoDate] = useState(null)
 
   useEffect(() => {
     async function load() {
@@ -36,6 +38,9 @@ export default function History({ managers }) {
         setHistory(data)
         const months = [...new Set(data.map(s => s.date.slice(0, 7)))].sort().reverse()
         if (months.length > 0) setSelectedMonth(months[0])
+        // 메모 날짜 초기값: 가장 최근 날짜
+        const dates = [...new Set(data.filter(s => s.memos && Object.keys(s.memos).length > 0).map(s => s.date))].sort().reverse()
+        if (dates.length > 0) setMemoDate(dates[0])
       }
     }
     load()
@@ -175,14 +180,11 @@ export default function History({ managers }) {
 
       {/* ───── 메모 모아보기 모드 ───── */}
       {mode === 'memos' && (() => {
-        // 전체 미체크 항목 수집 (메모 유무 관계없이)
-        const uncheckedCount = {}  // key → { catId, catName, catColor, catBg, itemText, count }
+        const uncheckedCount = {}
         const allMemos = []
 
         history.forEach(s => {
           const mgrName = s.managers?.name || '알 수 없음'
-
-          // 미체크 + 메모 작성된 항목만 집계
           CATEGORIES.forEach(cat => {
             cat.items.forEach((itemText, i) => {
               const key = `${cat.id}_${i}`
@@ -194,8 +196,6 @@ export default function History({ managers }) {
               }
             })
           })
-
-          // 메모 수집
           if (!s.memos) return
           Object.entries(s.memos).forEach(([key, text]) => {
             if (!text?.trim()) return
@@ -210,12 +210,7 @@ export default function History({ managers }) {
         })
         allMemos.sort((a, b) => b.date.localeCompare(a.date))
 
-        // 미체크 빈도 TOP 항목
-        const topUnchecked = Object.values(uncheckedCount)
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 15)
-
-        // 카테고리별 미체크 합산
+        const topUnchecked = Object.values(uncheckedCount).sort((a, b) => b.count - a.count).slice(0, 15)
         const catUnchecked = {}
         Object.values(uncheckedCount).forEach(u => {
           if (!catUnchecked[u.catId]) catUnchecked[u.catId] = { catName: u.catName, catColor: u.catColor, catBg: u.catBg, count: 0 }
@@ -224,17 +219,43 @@ export default function History({ managers }) {
         const catUncheckedSorted = Object.values(catUnchecked).sort((a, b) => b.count - a.count)
         const maxCatCount = catUncheckedSorted[0]?.count || 1
 
-        // 카테고리별 메모 수
-        const catCounts = {}
-        allMemos.forEach(m => { catCounts[m.catId] = (catCounts[m.catId] || 0) + 1 })
+        // 날짜 목록
+        const memoDates = [...new Set(allMemos.map(m => m.date))].sort().reverse()
 
         const filtered = memoCat === 'all' ? allMemos : allMemos.filter(m => m.catId === memoCat)
         const filteredUnchecked = memoCat === 'all' ? topUnchecked : topUnchecked.filter(u => u.catId === memoCat)
-        const shown = filtered.slice(0, memoLimit)
+
+        // 날짜별 뷰
+        const memoDateFiltered = filtered.filter(m => m.date === memoDate)
+        // 날짜별 그룹핑 (전체 뷰)
+        const groupedByDate = {}
+        filtered.slice(0, memoLimit).forEach(m => {
+          if (!groupedByDate[m.date]) groupedByDate[m.date] = []
+          groupedByDate[m.date].push(m)
+        })
         const maxCount = filteredUnchecked[0]?.count || 1
+
+        const MemoCard = ({ m, idx }) => (
+          <div key={idx} style={{ background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 8, padding: '10px 12px', marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 10, fontWeight: 500, padding: '1px 7px', borderRadius: 999, background: m.catBg, color: m.catColor }}>{m.catName}</span>
+              <span style={{ fontSize: 11, color: '#555', marginLeft: 'auto' }}>{m.mgrName}</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 5, lineHeight: 1.4 }}>{m.itemText}</div>
+            <div style={{ fontSize: 13, color: '#f0f0f0', lineHeight: 1.6, background: '#111', borderRadius: 6, padding: '7px 10px', borderLeft: `3px solid ${m.catColor}` }}>
+              {m.memo}
+            </div>
+          </div>
+        )
 
         return (
           <>
+            {/* 뷰 토글: 전체 / 날짜별 */}
+            <div className="history-toggle" style={{ marginBottom: 12 }}>
+              <button className={`toggle-btn ${memoView === 'all' ? 'active' : ''}`} onClick={() => setMemoView('all')}>전체 누적</button>
+              <button className={`toggle-btn ${memoView === 'daily' ? 'active' : ''}`} onClick={() => setMemoView('daily')}>날짜별</button>
+            </div>
+
             {/* 카테고리 필터 */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
               <button onClick={() => setMemoCat('all')} style={{
@@ -253,72 +274,115 @@ export default function History({ managers }) {
               ))}
             </div>
 
-            {/* 미체크 빈도 — 카테고리별 요약 (전체 모드일 때) */}
-            {memoCat === 'all' && catUncheckedSorted.length > 0 && (
-              <div style={{ background: '#111', border: '1px solid #222', borderRadius: 10, padding: '14px', marginBottom: 14 }}>
-                <div className="section-title" style={{ marginBottom: 12 }}>카테고리별 미체크 누적 횟수</div>
-                {catUncheckedSorted.map(c => (
-                  <div key={c.catName} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-                    <span style={{ fontSize: 11, color: '#888', width: 44, textAlign: 'right', flexShrink: 0 }}>{c.catName}</span>
-                    <div style={{ flex: 1, height: 8, background: '#1a1a1a', borderRadius: 4, overflow: 'hidden' }}>
-                      <div style={{ width: `${c.count / maxCatCount * 100}%`, height: '100%', background: c.catColor, borderRadius: 4, transition: 'width .4s' }} />
-                    </div>
-                    <span style={{ fontSize: 11, fontFamily: 'DM Mono', color: c.catColor, width: 32, textAlign: 'right', flexShrink: 0 }}>{c.count}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* 미체크 빈도 TOP 항목 */}
-            {filteredUnchecked.length > 0 && (
-              <div style={{ background: '#111', border: '1px solid #222', borderRadius: 10, padding: '14px', marginBottom: 14 }}>
-                <div className="section-title" style={{ marginBottom: 12 }}>
-                  {memoCat === 'all' ? '미체크 빈도 TOP 15 항목' : `${CATEGORIES.find(c=>c.id===memoCat)?.name} — 미체크 빈도`}
-                </div>
-                {filteredUnchecked.map((u, idx) => (
-                  <div key={idx} style={{ marginBottom: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                      <span style={{ fontSize: 10, fontWeight: 500, padding: '1px 6px', borderRadius: 999, background: u.catBg, color: u.catColor, flexShrink: 0 }}>{u.catName}</span>
-                      <span style={{ fontSize: 11, color: '#666', lineHeight: 1.4, flex: 1 }}>{u.itemText.length > 30 ? u.itemText.slice(0, 30) + '…' : u.itemText}</span>
-                      <span style={{ fontSize: 12, fontFamily: 'DM Mono', color: u.count >= 5 ? '#e74c3c' : u.count >= 3 ? '#f39c12' : '#888', flexShrink: 0, fontWeight: 500 }}>{u.count}회</span>
-                    </div>
-                    <div style={{ height: 5, background: '#1a1a1a', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ width: `${u.count / maxCount * 100}%`, height: '100%', borderRadius: 3, transition: 'width .4s',
-                        background: u.count >= 5 ? '#e74c3c' : u.count >= 3 ? '#f39c12' : '#444'
-                      }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* 메모 목록 */}
-            <div className="section-title" style={{ marginBottom: 10 }}>
-              메모 기록 {filtered.length}건
-            </div>
-            {shown.length === 0 ? (
-              <div className="empty-state">메모가 없습니다.</div>
-            ) : (
+            {/* ── 날짜별 뷰 ── */}
+            {memoView === 'daily' && (
               <>
-                {shown.map((m, idx) => (
-                  <div key={idx} style={{ background: '#111', border: '1px solid #222', borderRadius: 10, padding: '12px 14px', marginBottom: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 999, background: m.catBg, color: m.catColor }}>{m.catName}</span>
-                      <span style={{ fontSize: 11, color: '#555', fontFamily: 'DM Mono' }}>{m.date}</span>
-                      <span style={{ fontSize: 11, color: '#555', marginLeft: 'auto' }}>{m.mgrName}</span>
+                {/* 날짜 선택 */}
+                {memoDates.length === 0 ? (
+                  <div className="empty-state">메모가 없습니다.</div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+                      {memoDates.map(d => {
+                        const count = filtered.filter(m => m.date === d).length
+                        return (
+                          <button key={d} onClick={() => setMemoDate(d)} style={{
+                            padding: '5px 10px', borderRadius: 8, fontSize: 11,
+                            border: 'none', cursor: 'pointer', fontFamily: 'DM Mono, monospace',
+                            background: memoDate === d ? '#f0f0f0' : '#1a1a1a',
+                            color: memoDate === d ? '#000' : '#888',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2
+                          }}>
+                            <span>{d.slice(5)}</span>
+                            <span style={{ fontSize: 10, color: memoDate === d ? '#555' : '#444' }}>{count}건</span>
+                          </button>
+                        )
+                      })}
                     </div>
-                    <div style={{ fontSize: 12, color: '#888', marginBottom: 6, lineHeight: 1.5 }}>{m.itemText}</div>
-                    <div style={{ fontSize: 13, color: '#f0f0f0', lineHeight: 1.6, background: '#1a1a1a', borderRadius: 6, padding: '8px 10px', borderLeft: `3px solid ${m.catColor}` }}>
-                      {m.memo}
-                    </div>
+
+                    {memoDate && (
+                      <>
+                        <div className="section-title" style={{ marginBottom: 10 }}>
+                          {memoDate} · {memoDateFiltered.length}건
+                        </div>
+                        {memoDateFiltered.length === 0 ? (
+                          <div className="empty-state">해당 날짜에 메모가 없습니다.</div>
+                        ) : (
+                          memoDateFiltered.map((m, i) => <MemoCard key={i} m={m} idx={i} />)
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ── 전체 누적 뷰 ── */}
+            {memoView === 'all' && (
+              <>
+                {/* 카테고리별 미체크 누적 */}
+                {memoCat === 'all' && catUncheckedSorted.length > 0 && (
+                  <div style={{ background: '#111', border: '1px solid #222', borderRadius: 10, padding: '14px', marginBottom: 14 }}>
+                    <div className="section-title" style={{ marginBottom: 12 }}>카테고리별 미체크 누적 횟수</div>
+                    {catUncheckedSorted.map(c => (
+                      <div key={c.catName} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+                        <span style={{ fontSize: 11, color: '#888', width: 44, textAlign: 'right', flexShrink: 0 }}>{c.catName}</span>
+                        <div style={{ flex: 1, height: 8, background: '#1a1a1a', borderRadius: 4, overflow: 'hidden' }}>
+                          <div style={{ width: `${c.count / maxCatCount * 100}%`, height: '100%', background: c.catColor, borderRadius: 4 }} />
+                        </div>
+                        <span style={{ fontSize: 11, fontFamily: 'DM Mono', color: c.catColor, width: 32, textAlign: 'right', flexShrink: 0 }}>{c.count}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                {filtered.length > memoLimit && (
-                  <button onClick={() => setMemoLimit(l => l + 30)} style={{
-                    width: '100%', padding: '10px', background: '#1a1a1a', border: '1px solid #333',
-                    borderRadius: 8, color: '#888', fontSize: 13, cursor: 'pointer',
-                    fontFamily: 'Noto Sans KR, sans-serif', marginTop: 4
-                  }}>더 보기 ({filtered.length - memoLimit}건 남음)</button>
+                )}
+
+                {/* 미체크 빈도 TOP */}
+                {filteredUnchecked.length > 0 && (
+                  <div style={{ background: '#111', border: '1px solid #222', borderRadius: 10, padding: '14px', marginBottom: 14 }}>
+                    <div className="section-title" style={{ marginBottom: 12 }}>
+                      {memoCat === 'all' ? '미체크 빈도 TOP 15 항목' : `${CATEGORIES.find(c=>c.id===memoCat)?.name} — 미체크 빈도`}
+                    </div>
+                    {filteredUnchecked.map((u, idx) => (
+                      <div key={idx} style={{ marginBottom: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <span style={{ fontSize: 10, fontWeight: 500, padding: '1px 6px', borderRadius: 999, background: u.catBg, color: u.catColor, flexShrink: 0 }}>{u.catName}</span>
+                          <span style={{ fontSize: 11, color: '#666', lineHeight: 1.4, flex: 1 }}>{u.itemText.length > 30 ? u.itemText.slice(0, 30) + '…' : u.itemText}</span>
+                          <span style={{ fontSize: 12, fontFamily: 'DM Mono', color: u.count >= 5 ? '#e74c3c' : u.count >= 3 ? '#f39c12' : '#888', flexShrink: 0, fontWeight: 500 }}>{u.count}회</span>
+                        </div>
+                        <div style={{ height: 5, background: '#1a1a1a', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ width: `${u.count / maxCount * 100}%`, height: '100%', borderRadius: 3,
+                            background: u.count >= 5 ? '#e74c3c' : u.count >= 3 ? '#f39c12' : '#444'
+                          }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 날짜 그룹별 메모 목록 */}
+                <div className="section-title" style={{ marginBottom: 10 }}>메모 기록 {filtered.length}건</div>
+                {filtered.length === 0 ? (
+                  <div className="empty-state">메모가 없습니다.</div>
+                ) : (
+                  <>
+                    {Object.entries(groupedByDate).map(([date, memos]) => (
+                      <div key={date} style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, color: '#555', fontFamily: 'DM Mono', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {date}
+                          <span style={{ height: 1, flex: 1, background: '#1a1a1a' }} />
+                          <span>{memos.length}건</span>
+                        </div>
+                        {memos.map((m, i) => <MemoCard key={i} m={m} idx={i} />)}
+                      </div>
+                    ))}
+                    {filtered.length > memoLimit && (
+                      <button onClick={() => setMemoLimit(l => l + 30)} style={{
+                        width: '100%', padding: '10px', background: '#1a1a1a', border: '1px solid #333',
+                        borderRadius: 8, color: '#888', fontSize: 13, cursor: 'pointer',
+                        fontFamily: 'Noto Sans KR, sans-serif', marginTop: 4
+                      }}>더 보기 ({filtered.length - memoLimit}건 남음)</button>
+                    )}
+                  </>
                 )}
               </>
             )}
